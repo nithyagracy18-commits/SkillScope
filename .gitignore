@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+
+# Resume data and extracted personal information
+resumes/
+uploads/
+extracted*.txt
+*.resume.txt
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,50 @@
+--- Page 1 (embedded PDF text) ---
+NITHYA Y
++91-9353482651 | nithyagracy18@gmail.com |
+www.linkedin.com/in/nithya-gracy | github.com/nithyagracy18 | Karnataka, India
+PROFESSIONAL SUMMARY
+Computer Science Engineering student with skills in Java, Python, SQL, and web development. Passionate about software
+development and building practical solutions through AI and machine learning projects. Seeking an opportunity to apply
+my technical skills, learn from industry professionals, and contribute to innovative projects.
+EDUCATION
+Reva University, Bengaluru, Karnataka
+2024 - Present
+B.Tech - Computer Science and Engineering | CGPA: 7.96 / 10
+East West Institute of Technology, Bengaluru
+2021 - 2024
+Diploma in Computer Science and Engineering | CGPA: 9.42 / 10
+TECHNICAL SKILLS
+Programming Languages: Java, Python, C
+Data Analysis: SQL, Excel, Python (Pandas, NumPy)
+Web Technologies: HTML, CSS, JavaScript, React, TypeScript
+Databases: MySQL, SQLite, Firebase
+Frameworks & Tools: Git, GitHub, VS Code
+Core Concepts: Data Structures & Algorithms (DSA), Object-Oriented Programming (OOP), DBMS
+PROJECTS
+EduVault – Student Documentation Portal
+FEB – MAY (2026)
+• Developed an AI-powered platform for secure storage and management of student documents.
+• Integrated OCR and Gemini AI for automatic document classification and guidance.
+• Implemented QR-based verification and security features to ensure document authenticity.
+Tech Stack: Python, SQLite, HTML, CSS, Gemini API
+PulseIQ – AI-Driven Business Insight Generation Platform
+MAR – MAY (2026)
+• Developed an AI-powered platform that converts business data into actionable insights.
+• Built interactive dashboards with secure user authentication and data visualization.
+• Designed a full-stack solution to support data-driven decision-making.
+Tech Stack: React, TypeScript, Python, Firebase
+Autism Spectrum Disorder Detection Using Machine Learning
+OCT – DEC (2025)
+• Developed a machine learning model to identify Autism Spectrum Disorder using behavioral data.
+• Supported early diagnosis through data-driven analysis and model development.
+Tech Stack: Python, Machine Learning, Scikit-learn, Pandas
+CERTIFICATIONS
+•
+Java Intermediate – SoloLearn (2024)
+•
+Data Analytics Job Simulation Deloitte – Forage (2026)
+•
+Data Visualisation: Empowering Business with Effective Insights Tata – Forage (2026)
+LANGUAGES & SOFT SKILLS
+Languages: English (Professional), Kannada (Native), Hindi (Professional)
+Soft Skills: Problem Solving, Communication, Team Collaboration, Adaptability, Time Management
