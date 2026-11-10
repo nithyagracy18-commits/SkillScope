@@ -1,4 +1,6 @@
-PyMuPDF>=1.24
-pytesseract>=0.3.13
-Pillow>=10.0
-python-docx>=1.1
+streamlit
+pymupdf
+# Add whatever your extract_resume.py imports for other formats, for example:
+# python-docx
+# pillow
+# pytesseract

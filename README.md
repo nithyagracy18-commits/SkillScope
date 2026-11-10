@@ -1,64 +1,38 @@
-# Resume Skill Gap Analyzer — Starter
+# SkillScope: AI Resume Skill Gap Analyzer
 
-This starter implements the first milestone: extract text from PDF, DOCX, and image resumes, using OCR when needed.
+## Run
+    python -m pip install -r requirements.txt
+    python -m streamlit run app.py
 
-## 1. Requirements
-- Windows 10/11
-- Python 3.10–3.12 recommended
-- Tesseract OCR installed separately for scanned PDFs/images
+## Files
+- app.py          Streamlit app (screens, styling, layout)
+- extract_resume.py, skill_analyzer.py   Your existing text extraction and skill matching
+- ats_score.py    Resume readiness (ATS-style) score out of 100
+- jd_parser.py    Extracts skills from a pasted job description
+- roadmap.py      Personalised learning roadmap
+- ai_features.py  AI resume improvement and mock interview (AI mode or built-in rules)
+- .streamlit/config.toml   Dark theme in the Midnight Black + Electric Cobalt palette
 
-## 2. Create and activate a virtual environment
-Open PowerShell in this folder:
+## How the app flows
+1. Home: upload your resume and pick a role (or paste a job description).
+2. Skill Gap (shown first): your alignment score, skills you have and skills to develop.
+3. ATS Score: click it to see your score, what to fix and suggested improvements.
+4. Learning Roadmap: click it for a step-by-step plan for the missing skills,
+   adjusted by study hours per week and your current level.
+5. Mock Interview (top bar): choose any role, answer five questions one at a
+   time and get feedback and a score on each answer. Works with or without a resume.
 
-```powershell
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-```
+The top toolbar is on every screen. ATS Score, Skill Gap and Learning Roadmap
+unlock after a resume has been analysed.
 
-If PowerShell blocks activation, use:
-```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-```
+## Optional AI mode
+Without a key, features 4 and 5 use built-in rules and nothing leaves your computer.
+With an Anthropic API key (type it in "AI settings", set the ANTHROPIC_API_KEY
+environment variable, or copy .streamlit/secrets.toml.example to secrets.toml),
+the resume text and your answers are sent to the Anthropic API.
+Set SKILLSCOPE_MODEL to change the model.
 
-## 3. Install Tesseract OCR on Windows
-Install the Windows Tesseract OCR application from the official UB Mannheim builds:
-https://github.com/UB-Mannheim/tesseract/wiki
-
-During installation, note the executable path. Common example:
-`C:\Program Files\Tesseract-OCR\tesseract.exe`
-
-You can either add that folder to your Windows PATH, or set the path in `config.py`.
-Then open a new terminal and test:
-```powershell
-tesseract --version
-```
-
-## 4. Run the extractor
-```powershell
-python extract_resume.py "C:\path\to\resume.pdf"
-python extract_resume.py "C:\path\to\resume.docx"
-python extract_resume.py "C:\path\to\scanned_resume.png"
-```
-
-Save extracted text to a file:
-```powershell
-python extract_resume.py "C:\path\to\resume.pdf" --output extracted.txt
-```
-
-## 5. How it works
-- Digital PDF: extracts embedded text using PyMuPDF.
-- Scanned PDF: if a page has very little embedded text, renders that page and runs Tesseract OCR.
-- DOCX: extracts paragraph text and table-cell text with python-docx.
-- PNG/JPG/TIFF/BMP: uses Tesseract OCR.
-- The output states which method was used per page/document.
-
-## 6. Troubleshooting
-- `TesseractNotFoundError`: install Tesseract and set `TESSERACT_CMD` in `config.py`.
-- `Poppler` is not required; PyMuPDF renders PDF pages itself.
-- OCR is slower than direct extraction. It is only used on PDF pages that appear to lack embedded text.
-- If OCR output is poor, try a clearer scan, higher resolution, straight pages, and good contrast.
-
-## Privacy
-Use sample, consented, anonymized, or appropriately licensed resumes for testing. Do not commit real resumes or extracted personal data to GitHub.
+## Limits
+- Skill matching is keyword based, so it can miss skills outside its lists.
+- The ATS score is a rule-based guide, not what real ATS software uses.
+- AI suggestions can be wrong. Check every suggested line is true before using it.

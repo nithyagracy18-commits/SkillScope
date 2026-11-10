@@ -1,11 +1,22 @@
 import html
+import os
 import tempfile
+from datetime import date, timedelta
 from pathlib import Path
 
 import streamlit as st
 
 from extract_resume import extract_resume
 from skill_analyzer import analyze_resume, get_suggestions
+from roadmap import build_roadmap, roadmap_to_text
+from jd_parser import extract_jd_skills
+from ai_features import (
+    ai_available,
+    evaluate_answer,
+    generate_questions,
+    improve_resume,
+)
+from ats_score import ats_to_text, score_resume
 
 
 # =========================================================
@@ -316,6 +327,20 @@ JOB_ROLE_SKILLS = {
 }
 
 ALL_ROLES = sorted(JOB_ROLE_SKILLS.keys(), key=str.lower)
+
+# Roadmap personalisation: scales the starter hour estimates.
+LEVEL_FACTORS = {
+    "Beginner: new to these skills": 1.0,
+    "Some exposure: I know the basics": 0.7,
+    "Comfortable: I mainly need practice": 0.5,
+}
+LEVEL_OPTIONS = list(LEVEL_FACTORS)
+
+# Every skill in the catalog, used to find skills in a pasted job description.
+SKILL_VOCABULARY = sorted(
+    {skill for skills in JOB_ROLE_SKILLS.values() for skill in skills},
+    key=str.casefold,
+)
 
 
 # =========================================================
@@ -841,6 +866,249 @@ st.markdown(
         border-radius: 20px;
     }
 
+    /* ATS checklist */
+
+    .ats-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 8px 0;
+        border-bottom: 1px solid rgba(101, 160, 255, .12);
+        font-size: 12px;
+        color: #E7EDFF;
+        line-height: 1.6;
+    }
+
+    .ats-tag {
+        flex: none;
+        min-width: 38px;
+        text-align: center;
+        padding: 2px 6px;
+        border-radius: 6px;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 1px;
+    }
+
+    .ats-ok {
+        color: #A7CBFF;
+        background: rgba(21, 88, 201, .22);
+        border: 1px solid rgba(101, 160, 255, .40);
+    }
+
+    .ats-fix {
+        color: #F1CB91;
+        background: rgba(217, 165, 90, .10);
+        border: 1px solid rgba(217, 165, 90, .35);
+    }
+
+    .ats-tip {
+        color: #A3AEC5;
+        font-size: 11px;
+    }
+
+    /* Roadmap */
+
+    .roadmap-phase {
+        position: relative;
+        margin: 0 0 22px 14px;
+        padding: 0 0 0 26px;
+        border-left: 2px solid rgba(101, 160, 255, .30);
+        animation: rise .6s ease both;
+    }
+
+    .roadmap-phase::before {
+        content: "";
+        position: absolute;
+        left: -9px;
+        top: 4px;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #1558C9;
+        border: 3px solid #030407;
+        box-shadow: 0 0 0 2px rgba(101, 160, 255, .6);
+    }
+
+    .roadmap-head {
+        font-family: var(--serif);
+        font-size: 22px;
+        color: #FFFFFF;
+    }
+
+    .roadmap-meta {
+        margin: 4px 0 12px;
+        font-size: 12px;
+        font-style: italic;
+        color: var(--blue-light);
+    }
+
+    .roadmap-skill {
+        padding: 16px 18px;
+        margin: 8px 0;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: linear-gradient(110deg, #0C1422, #080B12);
+        font-size: 13px;
+        line-height: 1.8;
+        color: #E7EDFF;
+        transition: border-color .2s ease, transform .2s ease;
+    }
+
+    .roadmap-skill:hover {
+        border-color: var(--blue);
+        transform: translateX(4px);
+    }
+
+    .roadmap-skill b {
+        color: #FFFFFF;
+        font-size: 14px;
+    }
+
+    .roadmap-hours {
+        float: right;
+        color: var(--blue-light);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 1px;
+    }
+
+    .roadmap-label {
+        color: #8FB8FF;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+    }
+
+    /* AI features */
+
+    .ai-badge {
+        display: inline-block;
+        padding: 3px 10px;
+        margin-bottom: 12px;
+        border-radius: 999px;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 1.5px;
+        border: 1px solid rgba(101, 160, 255, .45);
+        color: #A7CBFF;
+        background: rgba(21, 88, 201, .20);
+    }
+
+    .ai-badge.rules {
+        color: #F1CB91;
+        border-color: rgba(217, 165, 90, .40);
+        background: rgba(217, 165, 90, .08);
+    }
+
+    .diff-card {
+        padding: 16px 18px;
+        margin: 10px 0;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: linear-gradient(110deg, #0C1422, #080B12);
+        font-size: 13px;
+        line-height: 1.8;
+        color: #E7EDFF;
+    }
+
+    .diff-label {
+        display: block;
+        margin-top: 8px;
+        color: #8FB8FF;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+    }
+
+    .diff-before {
+        color: #A3AEC5;
+        text-decoration: line-through;
+        text-decoration-color: rgba(217, 165, 90, .6);
+    }
+
+    .diff-after {
+        color: #FFFFFF;
+    }
+
+    .fb-score {
+        font-size: 34px;
+        font-weight: 800;
+        letter-spacing: -1px;
+        color: #FFFFFF;
+    }
+
+    /* Top toolbar */
+
+    .st-key-toolbar {
+        padding: 10px;
+        margin-bottom: 22px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(8, 11, 18, .85);
+        backdrop-filter: blur(8px);
+    }
+
+    .st-key-toolbar div.stButton > button {
+        min-height: 42px;
+        font-size: 13px;
+        animation: none !important;
+    }
+
+    .st-key-toolbar div.stButton > button[kind="secondary"],
+    .st-key-toolbar button[data-testid="stBaseButton-secondary"] {
+        background: transparent;
+        border: 1px solid transparent;
+        color: #C0CEE8;
+        box-shadow: none;
+    }
+
+    .st-key-toolbar div.stButton > button[kind="secondary"]:hover,
+    .st-key-toolbar button[data-testid="stBaseButton-secondary"]:hover {
+        background: rgba(21, 88, 201, .18);
+        border-color: var(--line);
+        transform: none;
+        box-shadow: none;
+    }
+
+    .st-key-toolbar div.stButton > button:disabled {
+        background: transparent;
+        border-color: transparent;
+        color: #5C6985;
+        opacity: .55;
+    }
+
+    /* ATS score bar and interview question */
+
+    .ats-track {
+        height: 8px;
+        margin: 14px 0 6px;
+        border-radius: 20px;
+        background: var(--track);
+        overflow: hidden;
+    }
+
+    .ats-fill {
+        height: 100%;
+        border-radius: 20px;
+        background: linear-gradient(90deg, #1558C9, #65A0FF);
+        animation: barGrow 1.6s ease-out both;
+    }
+
+    .interview-question {
+        font-family: var(--serif);
+        font-size: 26px;
+        line-height: 1.4;
+        color: #FFFFFF;
+        margin: 12px 0 18px;
+    }
+
+    @keyframes barGrow {
+        from { width: 0; }
+    }
+
     /* Footer */
 
     .footer {
@@ -986,6 +1254,284 @@ def normalize_percentage(value):
         return 0.0
 
 
+def go_to(screen, view=None):
+    """Button callback: switch screen (and results view)."""
+    st.session_state.screen = screen
+    if view:
+        st.session_state.view = view
+
+
+def render_toolbar():
+    """Top navigation bar shown on every screen."""
+    has_analysis = st.session_state.get("analysis_data") is not None
+    screen = st.session_state.screen
+    view = st.session_state.get("view", "gap")
+
+    items = [
+        ("Home", "home", None, False),
+        ("Skill Gap", "results", "gap", not has_analysis),
+        ("ATS Score", "results", "ats", not has_analysis),
+        ("Learning Roadmap", "results", "roadmap", not has_analysis),
+        ("Mock Interview", "interview", None, False),
+    ]
+
+    with st.container(key="toolbar"):
+        columns = st.columns(len(items))
+
+        for column, (label, target, target_view, disabled) in zip(
+            columns, items
+        ):
+            active = screen == target and (
+                target_view is None or view == target_view
+            )
+
+            with column:
+                st.button(
+                    label,
+                    key=f"nav_{label}",
+                    type="primary" if active else "secondary",
+                    disabled=disabled,
+                    use_container_width=True,
+                    on_click=go_to,
+                    args=(target, target_view),
+                )
+
+
+def render_ai_settings():
+    """Optional API key box. Returns the key in use (may be empty)."""
+    with st.expander("AI settings (optional)"):
+        st.text_input(
+            "Anthropic API key",
+            type="password",
+            key="anthropic_key",
+            help="Leave empty to use the built-in rules. You can also set "
+                 "ANTHROPIC_API_KEY as an environment variable or in "
+                 ".streamlit/secrets.toml.",
+        )
+        st.caption(
+            "With a key, AI mode sends your resume text and interview "
+            "answers to the Anthropic API. Without a key, everything stays "
+            "on your computer and simple built-in rules are used instead."
+        )
+
+    return get_api_key()
+
+
+def ats_band(score):
+    if score >= 80:
+        return "Strong"
+    if score >= 60:
+        return "Good, with a few fixes"
+    if score >= 40:
+        return "Needs work"
+    return "Needs a lot of work"
+
+
+def render_ats_card(ats):
+    score = ats["score"]
+
+    # Problems first, so the user sees what to fix straight away.
+    ordered = sorted(ats["checks"], key=lambda check: check["passed"])
+
+    rows = []
+    for check in ordered:
+        tag_class = "ats-ok" if check["passed"] else "ats-fix"
+        tag_text = "OK" if check["passed"] else "FIX"
+        tip = (
+            ""
+            if check["passed"]
+            else '<div class="ats-tip">' + html.escape(check["tip"]) + "</div>"
+        )
+        rows.append(
+            '<div class="ats-row">'
+            f'<span class="ats-tag {tag_class}">{tag_text}</span>'
+            f'<span>{html.escape(check["label"])}{tip}</span>'
+            "</div>"
+        )
+
+    st.markdown(
+        f"""
+        <div class="glass-card">
+            <div class="metric-label">Your ATS score</div>
+            <div class="metric-number">{score}<span style="font-size:18px;
+                color:#A3AEC5"> / 100</span></div>
+            <div class="metric-caption">{ats_band(score)}</div>
+            <div class="ats-track"><div class="ats-fill"
+                style="width:{score}%"></div></div>
+            <div class="metric-caption" style="margin-bottom:14px">
+                Structure and writing checks. A guide, not a hiring prediction.
+            </div>
+            {"".join(rows)}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_roadmap(roadmap):
+    for phase in roadmap["phases"]:
+        skill_cards = "".join(
+            f"""
+            <div class="roadmap-skill">
+                <span class="roadmap-hours">~{item['hours']} HRS</span>
+                <b>{html.escape(item['skill'])}</b><br>
+                <span class="roadmap-label">Learn</span>
+                {html.escape(item['learn'])}<br>
+                <span class="roadmap-label">Practise</span>
+                {html.escape(item['project'])}
+            </div>
+            """
+            for item in phase["items"]
+        )
+
+        st.markdown(
+            f"""
+            <div class="roadmap-phase">
+                <div class="roadmap-head">{html.escape(phase['title'])}</div>
+                <div class="roadmap-meta">
+                    {html.escape(phase['weeks'])} &nbsp;/&nbsp;
+                    about {phase['hours']} hours
+                </div>
+                {skill_cards}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+def get_api_key():
+    """API key from the settings box, Streamlit secrets or environment."""
+    typed = str(st.session_state.get("anthropic_key", "")).strip()
+    if typed:
+        return typed
+
+    try:
+        secret = str(st.secrets.get("ANTHROPIC_API_KEY", "")).strip()
+    except Exception:
+        secret = ""
+
+    return secret or os.environ.get("ANTHROPIC_API_KEY", "").strip()
+
+
+def render_mode_badge(mode):
+    if mode == "ai":
+        st.markdown(
+            '<span class="ai-badge">AI MODE</span>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            '<span class="ai-badge rules">BUILT-IN RULES</span>',
+            unsafe_allow_html=True,
+        )
+
+
+def render_improvement(result):
+    render_mode_badge(result.get("mode"))
+
+    if result.get("warning"):
+        st.warning(result["warning"])
+
+    if result.get("summary"):
+        st.markdown(
+            f"""
+            <div class="diff-card">
+                <span class="diff-label">Suggested summary</span>
+                <span class="diff-after">{html.escape(result['summary'])}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    if result.get("bullets"):
+        st.markdown(
+            '<div class="section-subtitle" style="margin:16px 0 0">'
+            'Suggested line rewrites</div>',
+            unsafe_allow_html=True,
+        )
+        for item in result["bullets"]:
+            before = (
+                f'<span class="diff-label">Before</span>'
+                f'<span class="diff-before">{html.escape(item["original"])}</span>'
+                if item.get("original") else ""
+            )
+            why = (
+                f'<span class="diff-label">Why</span>{html.escape(item["why"])}'
+                if item.get("why") else ""
+            )
+            st.markdown(
+                f"""
+                <div class="diff-card">
+                    {before}
+                    <span class="diff-label">After</span>
+                    <span class="diff-after">{html.escape(item['improved'])}</span>
+                    {why}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    if result.get("skills_to_surface"):
+        st.markdown(
+            '<div class="section-subtitle" style="margin:16px 0 6px">'
+            'If you genuinely have experience with these, add them to your '
+            'Skills section and show them in a project:</div>',
+            unsafe_allow_html=True,
+        )
+        render_skill_chips(result["skills_to_surface"], missing=True)
+
+    if result.get("tips"):
+        for tip in result["tips"]:
+            st.markdown(
+                f'<div class="recommendation">{html.escape(tip)}</div>',
+                unsafe_allow_html=True,
+            )
+
+    st.caption(
+        "Check that every suggested line is true before you use it, and "
+        "replace anything in [brackets] with your real details."
+    )
+
+
+def render_interview_feedback(feedback):
+    render_mode_badge(feedback.get("mode"))
+
+    if feedback.get("warning"):
+        st.warning(feedback["warning"])
+
+    strengths = "".join(
+        f"<li>{html.escape(item)}</li>" for item in feedback.get("strengths", [])
+    )
+    improvements = "".join(
+        f"<li>{html.escape(item)}</li>"
+        for item in feedback.get("improvements", [])
+    )
+    outline = (
+        f'<span class="diff-label">Stronger answer outline</span>'
+        f'{html.escape(feedback["outline"])}'
+        if feedback.get("outline") else ""
+    )
+
+    st.markdown(
+        f"""
+        <div class="diff-card">
+            <span class="diff-label">Score</span>
+            <span class="fb-score">{feedback['score']}<span
+                style="font-size:16px;color:#A3AEC5"> / 10</span></span>
+            <span class="diff-label">What worked</span>
+            <ul style="margin:4px 0 0 18px">{strengths or '<li>Nothing stood out yet.</li>'}</ul>
+            <span class="diff-label">How to improve</span>
+            <ul style="margin:4px 0 0 18px">{improvements or '<li>No major issues found.</li>'}</ul>
+            {outline}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if feedback.get("note"):
+        st.caption(feedback["note"])
+
+
 # =========================================================
 # SESSION STATE
 # =========================================================
@@ -999,12 +1545,22 @@ if "analysis_data" not in st.session_state:
 if "selected_role" not in st.session_state:
     st.session_state.selected_role = "Data Analyst"
 
+if "view" not in st.session_state:
+    st.session_state.view = "gap"
+
+if "improvement" not in st.session_state:
+    st.session_state.improvement = None
+
+if "interview" not in st.session_state:
+    st.session_state.interview = None
+
 
 # =========================================================
 # HEADER
 # =========================================================
 
 render_brand()
+render_toolbar()
 
 
 # =========================================================
@@ -1039,42 +1595,98 @@ if st.session_state.screen == "home":
         unsafe_allow_html=True,
     )
 
-    # Streamlit's selectbox has built-in type-to-search: click the dropdown
-    # and start typing a role to filter the list. This keeps search inside
-    # the dropdown instead of showing a separate search field.
-    current_role = st.session_state.selected_role
-    if current_role not in ALL_ROLES:
-        current_role = ALL_ROLES[0]
-
-    selected_role = st.selectbox(
-        "Target role",
-        options=ALL_ROLES,
-        index=ALL_ROLES.index(current_role),
-        key="role_selector",
-        help="Open the dropdown and start typing to search and filter job roles.",
+    compare_mode = st.radio(
+        "Compare my resume against",
+        ["A predefined job role", "A job description I paste"],
+        horizontal=True,
+        key="compare_mode",
     )
+    use_jd = compare_mode == "A job description I paste"
 
-    st.session_state.selected_role = selected_role
+    if not use_jd:
+        # Streamlit's selectbox has built-in type-to-search: click the dropdown
+        # and start typing a role to filter the list. This keeps search inside
+        # the dropdown instead of showing a separate search field.
+        current_role = st.session_state.selected_role
+        if current_role not in ALL_ROLES:
+            current_role = ALL_ROLES[0]
 
-    role_skills = JOB_ROLE_SKILLS[selected_role]
+        selected_role = st.selectbox(
+            "Target role",
+            options=ALL_ROLES,
+            index=ALL_ROLES.index(current_role),
+            key="role_selector",
+            help="Open the dropdown and start typing to search and filter job roles.",
+        )
 
-    st.markdown(
-        f"""
-        <div class="glass-card">
-            <div class="micro-label">SELECTED CAREER PATH</div>
-            <div style="font-size:23px;font-weight:750;
-                        color:#FFFFFF;margin-top:10px">
-                {html.escape(selected_role)}
+        st.session_state.selected_role = selected_role
+
+        role_skills = JOB_ROLE_SKILLS[selected_role]
+
+        st.markdown(
+            f"""
+            <div class="glass-card">
+                <div class="micro-label">SELECTED CAREER PATH</div>
+                <div style="font-size:23px;font-weight:750;
+                            color:#FFFFFF;margin-top:10px">
+                    {html.escape(selected_role)}
+                </div>
+                <p style="font-size:12px;color:#A3AEC5;
+                          line-height:1.8;margin-top:10px">
+                    This analysis checks your resume against
+                    {len(role_skills)} predefined skills for this role.
+                </p>
             </div>
-            <p style="font-size:12px;color:#A3AEC5;
-                      line-height:1.8;margin-top:10px">
-                This analysis checks your resume against
-                {len(role_skills)} predefined skills for this role.
-            </p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+            """,
+            unsafe_allow_html=True,
+        )
+
+    else:
+        jd_text = st.text_area(
+            "Paste the job description",
+            height=220,
+            key="jd_text",
+            placeholder=(
+                "Paste the full job description here. SkillScope will pick "
+                "out the skills it recognises and compare them with your "
+                "resume."
+            ),
+        )
+
+        jd_skills = extract_jd_skills(jd_text, SKILL_VOCABULARY)
+
+        if jd_skills:
+            selected_role = "Custom job description"
+            role_skills = jd_skills
+
+            st.markdown(
+                f"""
+                <div class="glass-card">
+                    <div class="micro-label">SKILLS FOUND IN THE JOB DESCRIPTION</div>
+                    <p style="font-size:12px;color:#A3AEC5;
+                              line-height:1.8;margin:10px 0 6px">
+                        {len(jd_skills)} skills detected. Your resume will be
+                        checked against these.
+                    </p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            render_skill_chips(jd_skills)
+        else:
+            selected_role = None
+            role_skills = []
+
+            if jd_text.strip():
+                st.warning(
+                    "No known skills were found in this text. Try pasting "
+                    "the requirements section, or choose a predefined role."
+                )
+            else:
+                st.info(
+                    "Paste a job description above to see which skills "
+                    "it asks for."
+                )
 
     st.markdown(
         '<div class="section-title">Upload your resume</div>',
@@ -1134,16 +1746,21 @@ if st.session_state.screen == "home":
                 else:
                     analysis_result = analyze_resume(
                         resume_text,
-                        JOB_ROLE_SKILLS[selected_role],
+                        role_skills,
                     )
 
                     st.session_state.analysis_data = {
                         "role": selected_role,
+                        "role_skills": list(role_skills),
                         "filename": uploaded_file.name,
                         "resume_text": resume_text,
                         "extraction_methods": extraction_methods,
                         "results": analysis_result,
                     }
+
+                    st.session_state.improvement = None
+                    st.session_state.view = "gap"
+                    st.session_state.interview = None
 
                     # Move to the separate results screen.
                     st.session_state.screen = "results"
@@ -1171,7 +1788,7 @@ if st.session_state.screen == "home":
 
 
 # =========================================================
-# SCREEN 2 - SEPARATE ANALYSIS RESULTS PAGE
+# SCREEN 2 - SKILL GAP, ATS SCORE AND LEARNING ROADMAP
 # =========================================================
 
 elif st.session_state.screen == "results":
@@ -1184,36 +1801,7 @@ elif st.session_state.screen == "results":
 
     results = data["results"]
     role = data["role"]
-
-    st.button(
-        "Back to resume upload",
-        on_click=lambda: setattr(st.session_state, "screen", "home"),
-    )
-
-    st.markdown(
-        """
-        <div class="hero">
-            <div class="eyebrow">YOUR PERSONAL SKILL REPORT</div>
-            <h1>Your next career move<br>starts here.</h1>
-            <p>
-                Review your skill alignment, explore the areas to improve,
-                and use the recommendations to plan your next steps.
-            </p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.markdown(
-        f"""
-        <div class="section-title">Analysis results</div>
-        <div class="section-subtitle">
-            Target role: <b>{html.escape(role)}</b><br>
-            Resume: {html.escape(data["filename"])}
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    view = st.session_state.get("view", "gap")
 
     matched_skills = results.get("matched_skills", [])
     missing_skills = results.get("missing_skills", [])
@@ -1223,173 +1811,618 @@ elif st.session_state.screen == "results":
         results.get("match_percentage", 0)
     )
 
-    # METRIC CARDS
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.markdown(
-            f"""
-            <div class="glass-card">
-                <div class="metric-label">Skill alignment</div>
-                <div class="metric-number">{percentage:.1f}%</div>
-                <div class="metric-caption">Based on predefined role skills</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    with col2:
-        st.markdown(
-            f"""
-            <div class="glass-card">
-                <div class="metric-label">Matched skills</div>
-                <div class="metric-number">{len(matched_skills)}</div>
-                <div class="metric-caption">Required keywords detected</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    with col3:
-        st.markdown(
-            f"""
-            <div class="glass-card">
-                <div class="metric-label">Skills to develop</div>
-                <div class="metric-number">{len(missing_skills)}</div>
-                <div class="metric-caption">Required keywords not detected</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    st.markdown(
-        '<div class="section-title">Overall skill alignment</div>',
-        unsafe_allow_html=True,
+    ats = score_resume(data["resume_text"])
+    study_hours = st.session_state.get("study_hours", 10)
+    study_level = st.session_state.get("study_level", LEVEL_OPTIONS[0])
+    roadmap = build_roadmap(
+        missing_skills,
+        study_hours,
+        LEVEL_FACTORS.get(study_level, 1.0),
     )
-
-    st.progress(percentage / 100.0)
-
-    st.caption(
-        "This score measures keyword matches against the selected role's "
-        "predefined skills. It is not a hiring probability or a complete "
-        "assessment of your abilities."
-    )
-
-    # MATCHED AND MISSING SKILLS
-
-    left, right = st.columns(2)
-
-    with left:
-        st.markdown(
-            '<div class="section-title">Skills found</div>',
-            unsafe_allow_html=True,
-        )
-
-        if matched_skills:
-            render_skill_chips(matched_skills)
-        else:
-            st.info("No required skills were detected in your resume.")
-
-    with right:
-        st.markdown(
-            '<div class="section-title">Skills to develop</div>',
-            unsafe_allow_html=True,
-        )
-
-        if missing_skills:
-            render_skill_chips(missing_skills, missing=True)
-        else:
-            st.success("All predefined role skills were detected.")
-
-    # RECOMMENDATIONS
-
-    st.markdown(
-        '<div class="section-title">Recommended next steps</div>',
-        unsafe_allow_html=True,
-    )
-
     suggestions = get_suggestions(missing_skills)
+    analysis_key = f"{data['filename']}|{role}"
 
-    if suggestions:
-        for index, suggestion in enumerate(suggestions, start=1):
+    # -----------------------------------------------------
+    # VIEW 1 - SKILL GAP
+    # -----------------------------------------------------
+
+    if view == "gap":
+
+        st.markdown(
+            """
+            <div class="hero">
+                <div class="eyebrow">YOUR SKILL GAP</div>
+                <h1>Here is where you<br>stand today.</h1>
+                <p>
+                    See which skills your resume already shows and which
+                    ones are missing for this role. Then check your ATS
+                    score, get a learning roadmap, or practise an interview.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        st.markdown(
+            f"""
+            <div class="section-title">Skill gap analysis</div>
+            <div class="section-subtitle">
+                Target role: <b>{html.escape(role)}</b><br>
+                Resume: {html.escape(data["filename"])}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
             st.markdown(
                 f"""
-                <div class="recommendation">
-                    <div class="micro-label">STEP {index}</div>
-                    <div style="margin-top:7px">
-                        {html.escape(str(suggestion))}
-                    </div>
+                <div class="glass-card">
+                    <div class="metric-label">Skill alignment</div>
+                    <div class="metric-number">{percentage:.1f}%</div>
+                    <div class="metric-caption">Based on the role's skills</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
-    else:
+
+        with col2:
+            st.markdown(
+                f"""
+                <div class="glass-card">
+                    <div class="metric-label">Skills you have</div>
+                    <div class="metric-number">{len(matched_skills)}</div>
+                    <div class="metric-caption">Found in your resume</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        with col3:
+            st.markdown(
+                f"""
+                <div class="glass-card">
+                    <div class="metric-label">Skills to develop</div>
+                    <div class="metric-number">{len(missing_skills)}</div>
+                    <div class="metric-caption">Not found in your resume</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
         st.markdown(
-            """
-            <div class="recommendation">
-                No skill-gap recommendations are available for this result.
-                Consider validating your resume against a real job
-                description to find additional improvements.
+            '<div class="section-title">Overall skill alignment</div>',
+            unsafe_allow_html=True,
+        )
+
+        st.progress(percentage / 100.0)
+
+        st.caption(
+            "This score measures keyword matches against the role's skills. "
+            "It is not a hiring probability or a complete assessment of "
+            "your abilities."
+        )
+
+        left, right = st.columns(2)
+
+        with left:
+            st.markdown(
+                '<div class="section-title">Skills you have</div>',
+                unsafe_allow_html=True,
+            )
+
+            if matched_skills:
+                render_skill_chips(matched_skills)
+            else:
+                st.info("No required skills were detected in your resume.")
+
+        with right:
+            st.markdown(
+                '<div class="section-title">Skills to develop</div>',
+                unsafe_allow_html=True,
+            )
+
+            if missing_skills:
+                render_skill_chips(missing_skills, missing=True)
+            else:
+                st.success("All the role's skills were detected.")
+
+        if suggestions:
+            st.markdown(
+                '<div class="section-title">Quick tips</div>',
+                unsafe_allow_html=True,
+            )
+
+            for index, suggestion in enumerate(suggestions, start=1):
+                st.markdown(
+                    f"""
+                    <div class="recommendation">
+                        <div class="micro-label">TIP {index}</div>
+                        <div style="margin-top:7px">
+                            {html.escape(str(suggestion))}
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+        # NEXT STEPS
+
+        st.markdown(
+            '<div class="section-title">What would you like to do next?</div>',
+            unsafe_allow_html=True,
+        )
+
+        step1, step2, step3 = st.columns(3)
+
+        with step1:
+            st.button(
+                "Check my ATS score",
+                key="next_ats",
+                on_click=go_to,
+                args=("results", "ats"),
+                use_container_width=True,
+            )
+            st.caption(
+                "See how your resume scores and how to improve it."
+            )
+
+        with step2:
+            st.button(
+                "Personalized learning roadmap",
+                key="next_roadmap",
+                on_click=go_to,
+                args=("results", "roadmap"),
+                use_container_width=True,
+                disabled=not missing_skills,
+            )
+            st.caption(
+                "A step-by-step plan for the skills you are missing."
+            )
+
+        with step3:
+            st.button(
+                "AI mock interview",
+                key="next_interview",
+                on_click=go_to,
+                args=("interview",),
+                use_container_width=True,
+            )
+            st.caption("Practise questions for this role and get feedback.")
+
+        # EXTRA DETAILS
+
+        with st.expander("View all skills detected in the resume"):
+            st.write(
+                ", ".join(resume_skills)
+                if resume_skills
+                else "No skills were detected."
+            )
+
+        with st.expander("View extracted resume text"):
+            st.text_area(
+                "Extracted text",
+                value=data["resume_text"],
+                height=260,
+                disabled=True,
+            )
+
+        with st.expander("View extraction details"):
+            for method in data["extraction_methods"]:
+                st.write(f"- {method}")
+
+        # DOWNLOAD REPORT
+
+        report_lines = [
+            "SKILLSCOPE - RESUME SKILL GAP REPORT",
+            "=" * 42,
+            f"Target role: {role}",
+            f"Resume file: {data['filename']}",
+            f"Skill alignment: {percentage:.1f}%",
+            "",
+            "MATCHED SKILLS",
+            *[f"- {skill}" for skill in matched_skills],
+            "",
+            "SKILLS TO DEVELOP",
+            *[f"- {skill}" for skill in missing_skills],
+            "",
+            "ATS SCORE",
+            *ats_to_text(ats),
+            "",
+            "LEARNING ROADMAP",
+            *roadmap_to_text(roadmap),
+            "",
+            "Note: This report uses predefined skill keywords. "
+            "It does not guarantee employment or measure every skill.",
+        ]
+
+        st.download_button(
+            "Download skill gap report",
+            data="\n".join(report_lines),
+            file_name="skillscope_report.txt",
+            mime="text/plain",
+            use_container_width=True,
+        )
+
+        if st.button("Analyze another resume", use_container_width=True):
+            st.session_state.analysis_data = None
+            st.session_state.screen = "home"
+            st.rerun()
+
+    # -----------------------------------------------------
+    # VIEW 2 - ATS SCORE AND IMPROVEMENT
+    # -----------------------------------------------------
+
+    elif view == "ats":
+
+        st.markdown(
+            f"""
+            <div class="section-title">Your ATS score</div>
+            <div class="section-subtitle">
+                Checks that recruiters and applicant tracking systems look
+                for in <b>{html.escape(data["filename"])}</b>.
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-    # EXTRA DETAILS
+        render_ats_card(ats)
 
-    with st.expander("View all skills detected in the resume"):
-        st.write(
-            ", ".join(resume_skills)
-            if resume_skills
-            else "No skills were detected."
+        st.markdown(
+            '<div class="section-title">How to improve your resume</div>',
+            unsafe_allow_html=True,
         )
 
-    with st.expander("View extracted resume text"):
-        st.text_area(
-            "Extracted text",
-            value=data["resume_text"],
-            height=260,
-            disabled=True,
+        api_key = get_api_key()
+        improvement = st.session_state.get("improvement")
+
+        if not improvement or improvement.get("key") != analysis_key:
+            with st.spinner("Reviewing your resume..."):
+                improvement = improve_resume(
+                    data["resume_text"], role, matched_skills,
+                    missing_skills, api_key, ats,
+                )
+            improvement["key"] = analysis_key
+            st.session_state.improvement = improvement
+
+        render_improvement(improvement)
+
+        if st.button("Regenerate suggestions", key="regenerate_improvement"):
+            st.session_state.improvement = None
+            st.rerun()
+
+        render_ai_settings()
+
+        st.button(
+            "Next: personalized learning roadmap",
+            key="ats_next",
+            on_click=go_to,
+            args=("results", "roadmap"),
+            use_container_width=True,
+            disabled=not missing_skills,
         )
 
-    with st.expander("View extraction details"):
-        for method in data["extraction_methods"]:
-            st.write(f"- {method}")
+    # -----------------------------------------------------
+    # VIEW 3 - PERSONALIZED LEARNING ROADMAP
+    # -----------------------------------------------------
 
-    # DOWNLOAD REPORT
+    elif view == "roadmap":
 
-    report_lines = [
-        "SKILLSCOPE - RESUME SKILL GAP REPORT",
-        "=" * 42,
-        f"Target role: {role}",
-        f"Resume file: {data['filename']}",
-        f"Skill alignment: {percentage:.1f}%",
-        "",
-        "MATCHED SKILLS",
-        *[f"- {skill}" for skill in matched_skills],
-        "",
-        "SKILLS TO DEVELOP",
-        *[f"- {skill}" for skill in missing_skills],
-        "",
-        "RECOMMENDATIONS",
-        *[f"- {suggestion}" for suggestion in suggestions],
-        "",
-        "Note: This report uses predefined skill keywords. "
-        "It does not guarantee employment or measure every skill.",
-    ]
+        st.markdown(
+            '<div class="section-title">Your personalized learning roadmap</div>',
+            unsafe_allow_html=True,
+        )
 
-    st.download_button(
-        "Download skill gap report",
-        data="\n".join(report_lines),
-        file_name="skillscope_report.txt",
-        mime="text/plain",
-        use_container_width=True,
+        if missing_skills:
+            st.markdown(
+                f"""
+                <div class="section-subtitle">
+                    A suggested order for learning the
+                    {len(missing_skills)} skills missing for
+                    <b>{html.escape(role)}</b>, with a small project for
+                    each one.
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            st.slider(
+                "Study hours per week",
+                min_value=3,
+                max_value=30,
+                value=10,
+                key="study_hours",
+            )
+
+            st.selectbox(
+                "Your current level with these skills",
+                LEVEL_OPTIONS,
+                key="study_level",
+            )
+
+            finish_date = (
+                date.today() + timedelta(weeks=roadmap["total_weeks"])
+            ).strftime("%d %b %Y")
+
+            st.markdown(
+                f"""
+                <div class="section-subtitle">
+                    Estimated effort: about <b>{roadmap['total_hours']} hours</b>,
+                    roughly <b>{roadmap['total_weeks']} weeks</b> at
+                    {roadmap['hours_per_week']} hours per week. Starting today,
+                    you could finish around <b>{finish_date}</b>.
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            render_roadmap(roadmap)
+
+            st.caption(
+                "Hours are rough starter estimates and resources are "
+                "suggestions, not guarantees. Adjust them to your own pace."
+            )
+        else:
+            st.success(
+                "No roadmap needed: all the role's skills were detected."
+            )
+
+        st.button(
+            "Next: AI mock interview",
+            key="roadmap_next",
+            on_click=go_to,
+            args=("interview",),
+            use_container_width=True,
+        )
+
+    render_footer()
+
+
+# =========================================================
+# SCREEN 3 - AI MOCK INTERVIEW
+# =========================================================
+
+elif st.session_state.screen == "interview":
+
+    def next_question():
+        st.session_state.interview["index"] += 1
+
+    def end_interview():
+        st.session_state.interview = None
+
+    data = st.session_state.analysis_data
+    interview = st.session_state.get("interview")
+
+    st.markdown(
+        '<div class="section-title">AI mock interview</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<div class="section-subtitle">Choose a role, answer five interview '
+        'questions one at a time, and get feedback on every answer.</div>',
+        unsafe_allow_html=True,
     )
 
-    if st.button("Analyze another resume", use_container_width=True):
-        st.session_state.analysis_data = None
-        st.session_state.screen = "home"
+    active = bool(interview) and interview["index"] < len(
+        interview["questions"]
+    )
+
+    if "interview_role" not in st.session_state:
+        start_role = st.session_state.selected_role
+        if data and data["role"] in ALL_ROLES:
+            start_role = data["role"]
+        st.session_state.interview_role = (
+            start_role if start_role in ALL_ROLES else ALL_ROLES[0]
+        )
+
+    chosen_role = st.selectbox(
+        "Choose the role you are interviewing for",
+        ALL_ROLES,
+        key="interview_role",
+        disabled=active,
+    )
+
+    use_resume = False
+    if data:
+        use_resume = st.checkbox(
+            "Use my resume to personalise the questions",
+            value=True,
+            key="interview_use_resume",
+            disabled=active,
+        )
+
+    api_key = render_ai_settings()
+    st.caption(
+        "Mode: AI interviewer" if ai_available(api_key)
+        else "Mode: built-in questions and feedback (no API key set)"
+    )
+
+    if active:
+        restart_col, end_col = st.columns(2)
+        with restart_col:
+            start_clicked = st.button(
+                "Restart interview", key="interview_start",
+                use_container_width=True,
+            )
+        with end_col:
+            st.button(
+                "End interview", key="interview_end",
+                on_click=end_interview, use_container_width=True,
+            )
+    else:
+        start_clicked = st.button(
+            "Start mock interview", key="interview_start",
+            type="primary", use_container_width=True,
+        )
+
+    if start_clicked:
+        for stale_key in [
+            k for k in st.session_state if str(k).startswith("answer_")
+        ]:
+            del st.session_state[stale_key]
+
+        role_skill_list = JOB_ROLE_SKILLS[chosen_role]
+        interview_matched = []
+        interview_missing = []
+        interview_resume = ""
+
+        if data and use_resume:
+            known = {
+                str(skill).casefold()
+                for skill in data["results"].get("resume_skills", [])
+            } | {
+                str(skill).casefold()
+                for skill in data["results"].get("matched_skills", [])
+            }
+            interview_matched = [
+                s for s in role_skill_list if s.casefold() in known
+            ]
+            interview_missing = [
+                s for s in role_skill_list if s.casefold() not in known
+            ]
+            interview_resume = data["resume_text"]
+
+        with st.spinner("Preparing your interview..."):
+            generated = generate_questions(
+                chosen_role, interview_matched, interview_missing,
+                role_skill_list, interview_resume, api_key,
+            )
+
+        st.session_state.interview = {
+            "role": chosen_role,
+            "mode": generated["mode"],
+            "warning": generated.get("warning", ""),
+            "questions": generated["questions"],
+            "index": 0,
+            "answers": {},
+            "feedback": {},
+        }
         st.rerun()
+
+    interview = st.session_state.get("interview")
+
+    if interview:
+        questions = interview["questions"]
+        index = interview["index"]
+        total = len(questions)
+
+        render_mode_badge(interview["mode"])
+
+        if interview.get("warning"):
+            st.warning(interview["warning"])
+
+        if index < total:
+            item = questions[index]
+
+            st.progress(index / total)
+
+            st.markdown(
+                f"""
+                <div class="micro-label">
+                    QUESTION {index + 1} OF {total} /
+                    {html.escape(item['type'])} /
+                    {html.escape(interview['role'])}
+                </div>
+                <div class="interview-question">
+                    {html.escape(item['question'])}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            if index not in interview["feedback"]:
+                answer = st.text_area(
+                    "Your answer",
+                    key=f"answer_{index}",
+                    height=170,
+                    placeholder="Type your answer as you would say it in "
+                                "the interview.",
+                )
+
+                if st.button(
+                    "Submit answer", key=f"submit_{index}",
+                    type="primary", use_container_width=True,
+                ):
+                    if answer.strip():
+                        with st.spinner("Reviewing your answer..."):
+                            interview["feedback"][index] = evaluate_answer(
+                                item, answer, interview["role"], api_key
+                            )
+                        interview["answers"][index] = answer
+                        st.rerun()
+                    else:
+                        st.warning("Write an answer first.")
+            else:
+                st.markdown(
+                    f"""
+                    <div class="diff-card">
+                        <span class="diff-label">Your answer</span>
+                        {html.escape(interview["answers"].get(index, ""))}
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+                render_interview_feedback(interview["feedback"][index])
+
+                st.button(
+                    "Next question" if index < total - 1
+                    else "Finish interview",
+                    key=f"next_{index}",
+                    on_click=next_question,
+                    type="primary",
+                    use_container_width=True,
+                )
+
+        else:
+            scores = [
+                interview["feedback"][i]["score"]
+                for i in range(total) if i in interview["feedback"]
+            ]
+            average = sum(scores) / len(scores) if scores else 0
+
+            if average >= 8:
+                verdict = "Strong performance. Keep your answers specific."
+            elif average >= 5:
+                verdict = (
+                    "Decent start. Add concrete examples, numbers and a "
+                    "clear structure to your answers."
+                )
+            else:
+                verdict = (
+                    "Keep practising. Explain what you did, how, and what "
+                    "the result was."
+                )
+
+            rows = "".join(
+                f"<li>Question {i + 1} ({html.escape(questions[i]['type'])}): "
+                f"{interview['feedback'][i]['score']} / 10</li>"
+                for i in range(total) if i in interview["feedback"]
+            )
+
+            st.markdown(
+                f"""
+                <div class="glass-card">
+                    <div class="metric-label">Interview complete</div>
+                    <div class="metric-number">{average:.1f}
+                        <span style="font-size:18px;color:#A3AEC5"> / 10</span>
+                    </div>
+                    <div class="metric-caption">{html.escape(verdict)}</div>
+                    <ul style="margin:14px 0 0 18px;font-size:13px;
+                               line-height:1.9;color:#E7EDFF">{rows}</ul>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            st.button(
+                "Start a new interview",
+                key="interview_again",
+                on_click=end_interview,
+                type="primary",
+                use_container_width=True,
+            )
 
     render_footer()
