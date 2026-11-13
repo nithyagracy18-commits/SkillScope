@@ -3,6 +3,7 @@ import os
 import tempfile
 from datetime import date, timedelta
 from pathlib import Path
+from resume_validator import validate_resume
 
 import streamlit as st
 
@@ -365,7 +366,17 @@ st.markdown(
         --track: #2B3140;
         --line: rgba(101, 160, 255, 0.22);
         --serif: 'Playfair Display', Georgia, serif;
+        --fs: 1.12;
     }
+
+    /* Font scale follows the screen size: bigger text on bigger laptops */
+    @media (min-width: 1280px) { :root { --fs: 1.22; } }
+    @media (min-width: 1536px) { :root { --fs: 1.34; } }
+    @media (min-width: 1920px) { :root { --fs: 1.48; } }
+    @media (max-width: 700px)  { :root { --fs: 1.05; } }
+
+    /* Streamlit's own widgets (inputs, buttons, labels) use rem, so scale them too */
+    html { font-size: calc(16px * var(--fs)); }
 
     html, body, [class*="css"] {
         font-family: 'Inter', sans-serif;
@@ -502,7 +513,7 @@ st.markdown(
 
     .brand {
         color: #FFFFFF;
-        font-size: 24px;
+        font-size: calc(24px * var(--fs));
         font-weight: 800;
         letter-spacing: -1px;
     }
@@ -512,7 +523,7 @@ st.markdown(
     }
 
     .brand-note {
-        font-size: 10px;
+        font-size: calc(10px * var(--fs));
         color: #A3AEC5;
         letter-spacing: 2px;
         text-align: right;
@@ -570,7 +581,7 @@ st.markdown(
         position: relative;
         z-index: 1;
         color: var(--blue-light);
-        font-size: 11px;
+        font-size: calc(11px * var(--fs));
         font-weight: 800;
         letter-spacing: 3px;
         margin-bottom: 22px;
@@ -581,7 +592,7 @@ st.markdown(
         z-index: 1;
         font-family: var(--serif) !important;
         color: #FFFFFF;
-        font-size: clamp(36px, 5vw, 64px);
+        font-size: clamp(36px, 5vw, 84px);
         font-weight: 500;
         line-height: 1.1;
         letter-spacing: -1px;
@@ -601,7 +612,7 @@ st.markdown(
         z-index: 1;
         max-width: 620px;
         color: #C0CEE8;
-        font-size: 15px;
+        font-size: calc(15px * var(--fs));
         line-height: 1.9;
         margin: 0;
     }
@@ -611,7 +622,7 @@ st.markdown(
     .section-title {
         font-family: var(--serif);
         color: #F5F7FF;
-        font-size: 30px;
+        font-size: calc(30px * var(--fs));
         font-weight: 500;
         letter-spacing: -.4px;
         margin: 34px 0 7px;
@@ -619,14 +630,14 @@ st.markdown(
 
     .section-subtitle {
         color: var(--muted);
-        font-size: 13px;
+        font-size: calc(13px * var(--fs));
         line-height: 1.8;
         margin-bottom: 20px;
     }
 
     .micro-label {
         color: #8FB8FF;
-        font-size: 10px;
+        font-size: calc(10px * var(--fs));
         font-weight: 800;
         letter-spacing: 2px;
         text-transform: uppercase;
@@ -670,7 +681,7 @@ st.markdown(
 
     .metric-label {
         color: #AAB8D2;
-        font-size: 11px;
+        font-size: calc(11px * var(--fs));
         font-weight: 700;
         letter-spacing: 1.3px;
         text-transform: uppercase;
@@ -678,7 +689,7 @@ st.markdown(
 
     .metric-number {
         color: #FFFFFF;
-        font-size: 40px;
+        font-size: calc(40px * var(--fs));
         font-weight: 800;
         letter-spacing: -1.5px;
         margin-top: 12px;
@@ -686,7 +697,7 @@ st.markdown(
 
     .metric-caption {
         color: #A3AEC5;
-        font-size: 11px;
+        font-size: calc(11px * var(--fs));
         margin-top: 5px;
     }
 
@@ -698,7 +709,7 @@ st.markdown(
         border-radius: 8px;
         background: rgba(21, 88, 201, .16);
         color: #A7CBFF;
-        font-size: 12px;
+        font-size: calc(12px * var(--fs));
         transition: transform .2s ease, background .2s ease;
     }
 
@@ -715,7 +726,7 @@ st.markdown(
         border-radius: 8px;
         background: rgba(217, 165, 90, .08);
         color: #F1CB91;
-        font-size: 12px;
+        font-size: calc(12px * var(--fs));
         transition: transform .2s ease;
     }
 
@@ -730,7 +741,7 @@ st.markdown(
         border-radius: 12px;
         background: linear-gradient(110deg, #0C1422, #080B12);
         color: #E7EDFF;
-        font-size: 13px;
+        font-size: calc(13px * var(--fs));
         line-height: 1.8;
         transition: border-color .2s ease, transform .2s ease;
         animation: rise .5s ease both;
@@ -874,7 +885,7 @@ st.markdown(
         gap: 10px;
         padding: 8px 0;
         border-bottom: 1px solid rgba(101, 160, 255, .12);
-        font-size: 12px;
+        font-size: calc(12px * var(--fs));
         color: #E7EDFF;
         line-height: 1.6;
     }
@@ -885,7 +896,7 @@ st.markdown(
         text-align: center;
         padding: 2px 6px;
         border-radius: 6px;
-        font-size: 10px;
+        font-size: calc(10px * var(--fs));
         font-weight: 800;
         letter-spacing: 1px;
     }
@@ -904,7 +915,7 @@ st.markdown(
 
     .ats-tip {
         color: #A3AEC5;
-        font-size: 11px;
+        font-size: calc(11px * var(--fs));
     }
 
     /* Roadmap */
@@ -932,13 +943,13 @@ st.markdown(
 
     .roadmap-head {
         font-family: var(--serif);
-        font-size: 22px;
+        font-size: calc(22px * var(--fs));
         color: #FFFFFF;
     }
 
     .roadmap-meta {
         margin: 4px 0 12px;
-        font-size: 12px;
+        font-size: calc(12px * var(--fs));
         font-style: italic;
         color: var(--blue-light);
     }
@@ -949,7 +960,7 @@ st.markdown(
         border: 1px solid var(--line);
         border-radius: 12px;
         background: linear-gradient(110deg, #0C1422, #080B12);
-        font-size: 13px;
+        font-size: calc(13px * var(--fs));
         line-height: 1.8;
         color: #E7EDFF;
         transition: border-color .2s ease, transform .2s ease;
@@ -962,20 +973,20 @@ st.markdown(
 
     .roadmap-skill b {
         color: #FFFFFF;
-        font-size: 14px;
+        font-size: calc(14px * var(--fs));
     }
 
     .roadmap-hours {
         float: right;
         color: var(--blue-light);
-        font-size: 11px;
+        font-size: calc(11px * var(--fs));
         font-weight: 700;
         letter-spacing: 1px;
     }
 
     .roadmap-label {
         color: #8FB8FF;
-        font-size: 10px;
+        font-size: calc(10px * var(--fs));
         font-weight: 800;
         letter-spacing: 1.5px;
         text-transform: uppercase;
@@ -988,7 +999,7 @@ st.markdown(
         padding: 3px 10px;
         margin-bottom: 12px;
         border-radius: 999px;
-        font-size: 10px;
+        font-size: calc(10px * var(--fs));
         font-weight: 800;
         letter-spacing: 1.5px;
         border: 1px solid rgba(101, 160, 255, .45);
@@ -1008,7 +1019,7 @@ st.markdown(
         border: 1px solid var(--line);
         border-radius: 12px;
         background: linear-gradient(110deg, #0C1422, #080B12);
-        font-size: 13px;
+        font-size: calc(13px * var(--fs));
         line-height: 1.8;
         color: #E7EDFF;
     }
@@ -1017,7 +1028,7 @@ st.markdown(
         display: block;
         margin-top: 8px;
         color: #8FB8FF;
-        font-size: 10px;
+        font-size: calc(10px * var(--fs));
         font-weight: 800;
         letter-spacing: 1.5px;
         text-transform: uppercase;
@@ -1034,7 +1045,7 @@ st.markdown(
     }
 
     .fb-score {
-        font-size: 34px;
+        font-size: calc(34px * var(--fs));
         font-weight: 800;
         letter-spacing: -1px;
         color: #FFFFFF;
@@ -1053,7 +1064,7 @@ st.markdown(
 
     .st-key-toolbar div.stButton > button {
         min-height: 42px;
-        font-size: 13px;
+        font-size: calc(13px * var(--fs));
         animation: none !important;
     }
 
@@ -1099,7 +1110,7 @@ st.markdown(
 
     .interview-question {
         font-family: var(--serif);
-        font-size: 26px;
+        font-size: calc(26px * var(--fs));
         line-height: 1.4;
         color: #FFFFFF;
         margin: 12px 0 18px;
@@ -1117,7 +1128,7 @@ st.markdown(
         border-top: 1px solid var(--line);
         padding: 25px 0 5px;
         margin-top: 40px;
-        font-size: 10px;
+        font-size: calc(10px * var(--fs));
         letter-spacing: 2px;
         line-height: 2;
     }
@@ -1178,16 +1189,16 @@ st.markdown(
         }
 
         .hero h1 {
-            font-size: 36px;
+            font-size: calc(36px * var(--fs));
             letter-spacing: -.5px;
         }
 
         .section-title {
-            font-size: 25px;
+            font-size: calc(25px * var(--fs));
         }
 
         .metric-number {
-            font-size: 30px;
+            font-size: calc(30px * var(--fs));
         }
     }
 
@@ -1320,9 +1331,9 @@ def render_ai_settings():
 def ats_band(score):
     if score >= 80:
         return "Strong"
-    if score >= 60:
+    if score >= 65:
         return "Good, with a few fixes"
-    if score >= 40:
+    if score >= 45:
         return "Needs work"
     return "Needs a lot of work"
 
@@ -1353,13 +1364,13 @@ def render_ats_card(ats):
         f"""
         <div class="glass-card">
             <div class="metric-label">Your ATS score</div>
-            <div class="metric-number">{score}<span style="font-size:18px;
+            <div class="metric-number">{score}<span style="font-size:calc(18px * var(--fs));
                 color:#A3AEC5"> / 100</span></div>
             <div class="metric-caption">{ats_band(score)}</div>
             <div class="ats-track"><div class="ats-fill"
                 style="width:{score}%"></div></div>
             <div class="metric-caption" style="margin-bottom:14px">
-                Structure and writing checks. A guide, not a hiring prediction.
+                Scored on contact details, sections, writing quality, measurable results and keyword match for your target role. A guide, not a hiring prediction.
             </div>
             {"".join(rows)}
         </div>
@@ -1517,7 +1528,7 @@ def render_interview_feedback(feedback):
         <div class="diff-card">
             <span class="diff-label">Score</span>
             <span class="fb-score">{feedback['score']}<span
-                style="font-size:16px;color:#A3AEC5"> / 10</span></span>
+                style="font-size:calc(16px * var(--fs));color:#A3AEC5"> / 10</span></span>
             <span class="diff-label">What worked</span>
             <ul style="margin:4px 0 0 18px">{strengths or '<li>Nothing stood out yet.</li>'}</ul>
             <span class="diff-label">How to improve</span>
@@ -1627,11 +1638,11 @@ if st.session_state.screen == "home":
             f"""
             <div class="glass-card">
                 <div class="micro-label">SELECTED CAREER PATH</div>
-                <div style="font-size:23px;font-weight:750;
+                <div style="font-size:calc(23px * var(--fs));font-weight:750;
                             color:#FFFFFF;margin-top:10px">
                     {html.escape(selected_role)}
                 </div>
-                <p style="font-size:12px;color:#A3AEC5;
+                <p style="font-size:calc(12px * var(--fs));color:#A3AEC5;
                           line-height:1.8;margin-top:10px">
                     This analysis checks your resume against
                     {len(role_skills)} predefined skills for this role.
@@ -1663,7 +1674,7 @@ if st.session_state.screen == "home":
                 f"""
                 <div class="glass-card">
                     <div class="micro-label">SKILLS FOUND IN THE JOB DESCRIPTION</div>
-                    <p style="font-size:12px;color:#A3AEC5;
+                    <p style="font-size:calc(12px * var(--fs));color:#A3AEC5;
                               line-height:1.8;margin:10px 0 6px">
                         {len(jd_skills)} skills detected. Your resume will be
                         checked against these.
@@ -1700,11 +1711,12 @@ if st.session_state.screen == "home":
     )
 
     uploaded_file = st.file_uploader(
-        "Choose a resume file",
+        "Choose a resume file (Maximum 5 MB)",
         type=[
             "pdf", "docx", "png", "jpg", "jpeg",
             "tif", "tiff", "bmp", "webp",
         ],
+        max_upload_size=5,
         key="resume_uploader",
     )
 
@@ -1734,20 +1746,48 @@ if st.session_state.screen == "home":
             with st.spinner(
                 "Extracting resume text and comparing your skills..."
             ):
+                
                 resume_text, extraction_methods = extract_resume(
-                    temporary_path
+                temporary_path
                 )
-
+                # STEP 1: Check whether text was extracted
                 if not resume_text.strip():
                     st.error(
-                        "No text could be extracted. Try another resume "
-                        "or upload a clearer document."
-                    )
+                        "No text could be extracted. Please upload "
+                        "a readable resume."
+                        )
                 else:
+                    # STEP 2: Validate whether the document is a resume
+                    is_valid, message = validate_resume(resume_text)
+                if not is_valid:
+                    st.error("Invalid Document")
+                    st.warning(
+                        "This file does not appear to be a resume. "
+                        "Please upload a valid resume instead of "
+                        "a question paper, notes, or another document."
+                        )
+                    st.info(message)
+                else:
+                # STEP 3: Continue normal resume analysis
                     analysis_result = analyze_resume(
                         resume_text,
                         role_skills,
-                    )
+                        )
+                    st.session_state.analysis_data = {
+                        "role": selected_role,
+                        "role_skills": list(role_skills),
+                        "filename": uploaded_file.name,
+                        "resume_text": resume_text,
+                        "extraction_methods": extraction_methods,
+                        "results": analysis_result,
+                        }
+                    st.session_state.improvement = None
+                    st.session_state.view = "gap"
+                    st.session_state.interview = None
+                    
+                    st.session_state.screen = "results"
+                    st.rerun()
+
 
                     st.session_state.analysis_data = {
                         "role": selected_role,
@@ -1811,7 +1851,11 @@ elif st.session_state.screen == "results":
         results.get("match_percentage", 0)
     )
 
-    ats = score_resume(data["resume_text"])
+    ats = score_resume(
+        data["resume_text"],
+        matched_keywords=len(matched_skills),
+        total_keywords=len(matched_skills) + len(missing_skills),
+    )
     study_hours = st.session_state.get("study_hours", 10)
     study_level = st.session_state.get("study_level", LEVEL_OPTIONS[0])
     roadmap = build_roadmap(
@@ -2407,10 +2451,10 @@ elif st.session_state.screen == "interview":
                 <div class="glass-card">
                     <div class="metric-label">Interview complete</div>
                     <div class="metric-number">{average:.1f}
-                        <span style="font-size:18px;color:#A3AEC5"> / 10</span>
+                        <span style="font-size:calc(18px * var(--fs));color:#A3AEC5"> / 10</span>
                     </div>
                     <div class="metric-caption">{html.escape(verdict)}</div>
-                    <ul style="margin:14px 0 0 18px;font-size:13px;
+                    <ul style="margin:14px 0 0 18px;font-size:calc(13px * var(--fs));
                                line-height:1.9;color:#E7EDFF">{rows}</ul>
                 </div>
                 """,
